@@ -47,7 +47,7 @@ CONFIGS = [("1/1600", 100),
         ("1/10", 400),
         ("1/10", 800)]
 
-current_config = 10
+current_config = 22
 MIN_BRIGHTNESS = 50000
 MAX_BRIGHTNESS = 55000
 pic_id = 0
