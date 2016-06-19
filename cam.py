@@ -86,10 +86,10 @@ def check_pic(filename, current_config):
     config_delta = check_brightness(filename, current_config)
     if config_delta != 0: 
         current_config = change_setting(current_config, config_delta)
-        return current_config False 
-    return current_config True
+        return current_config, False 
+    return current_config, True
 
-def store_pic(filename)
+def store_pic(filename):
     os.rename(filename, "pic"+str(pic_id)+".jpg")
     pic_id += 1
 
@@ -109,10 +109,10 @@ try:
 #	print(current_config)
         add_buzzer_listener(channel)
     add_buzzer_listener(BUTTON)
+
     while True:
-        filename = take_pic()
-        check_pic(filename, current_config)
-    time.sleep(100)
+        time.sleep(1)
+        
 except Exception as e:  
     print("Exception caught: {0}".format(e))
 finally:
