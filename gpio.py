@@ -14,10 +14,10 @@ running = True
 def eprint(err):
     sys.stderr.write(err)
 
-def init():  
+def GPIO_init():  
     GPIO.setmode(GPIO.BCM)
 
-def cleanup():
+def GPIO_cleanup():
     print "Cleaning up GPIO"
     GPIO.cleanup()
 
@@ -34,14 +34,14 @@ class Button():
         self._start_listening()
 
     def _start_listening(self):
-        GPIO.add_event_detect(self.pin, GPIO.FALLING, callback=self._on_buzzer_pushed_once, bouncetime=self.debounce_ms)
+        GPIO.add_event_detect(self.pin, GPIO.FALLING, callback=self._on_pushed_once, bouncetime=self.debounce_ms)
         
-    def _on_buzzer_pushed_once(self, channel):  
+    def _on_pushed_once(self, channel):  
         GPIO.remove_event_detect (self.pin)
         if hasattr(self, 'on_pushed'):
             self.on_pushed()
         else:
-            eprint('Buzzer.on_pushed() not defined!')
+            eprint('Button.on_pushed() not defined!')
         self._start_listening()
 
 class Led():
@@ -71,10 +71,10 @@ def main():
     while running:
         time.sleep(1)
  
-    
-try:
-    init()
-    print("starting")
-    main()
-except KeyboardInterrupt:
-    cleanup()
+#    
+#try:
+#    init()
+#    print("starting")
+#    main()
+#except KeyboardInterrupt:
+#    cleanup()
