@@ -1,6 +1,9 @@
 import re
 import time
 
+from PIL import Image
+from PIL import ImageStat
+
 class Wrapper(object):
 
     def __init__(self, subprocess):
@@ -12,54 +15,15 @@ class Wrapper(object):
         out, err = p.communicate()
         return p.returncode, out.rstrip(), err.rstrip()
 
-class NetworkInfo(Wrapper):
+class ImageAnalyzer():
 
-    def __init__(self, subprocess):
-        Wrapper.__init__(self, subprocess)
-
-    def network_status(self):
-        iwcode, iwconfig, err = self.call("iwconfig")
-        wlcode, wlan, err = self.call("ifconfig wlan0")
-        etcode, eth, err = self.call("ifconfig eth0")
-        ssid = None
-        wip = None
-        eip = None
-        if iwcode == 0 and 'ESSID' in iwconfig:
-            ssid = re.findall('ESSID:"([^"]*)', iwconfig)[0]
-        if wlcode == 0 and 'inet addr' in wlan:
-            wip = re.findall('inet addr:([^ ]*)', wlan)[0]
-        if etcode == 0 and 'inet addr' in eth:
-            eip = re.findall('inet addr:([^ ]*)', eth)[0]
-        ret = ''
-        if ssid:
-            ret = ssid
-        if wip:
-            ret = ret + '\n' + wip
-        elif eip:
-            ret = ret + eip
-        if not ssid and not wip and not eip:
-            ret = 'No Network'
-        return ret
-
-
-class Identify(Wrapper):
-    """ A class which wraps calls to the external identify process. """
-
-    def __init__(self, subprocess):
-        Wrapper.__init__(self, subprocess)
-        self._CMD = 'identify'
-
-    def summary(self, filepath):
-        code, out, err = self.call(self._CMD + " " + filepath)
-        if code != 0:
-            raise Exception(err)
-        return out
-
-    def mean_brightness(self, filepath):
-        code, out, err = self.call(self._CMD + ' -define jpeg:size=512x512 -format "%[mean]" ' + filepath)
-        if code != 0:
-            raise Exception(err)
-        return out
+    @staticmethod
+    def mean_brightness(filepath):
+        im = Image.open(filepath)
+        stat = ImageStat.Stat(im)
+        rms = stat.rms[0]
+        im.close()
+        return rms
 
 class GPhoto(Wrapper):
     """ A class which wraps calls to the external gphoto2 process. """
@@ -97,15 +61,23 @@ class GPhoto(Wrapper):
         code, out, err = self.call([self._CMD + " --get-config /main/capturesettings/shutterspeed"])
         if code != 0:
             raise Exception(err)
-        choices = {}
+        choices = [] 
         current = None
         for line in out.split('\n'):
             if line.startswith('Choice:'):
-                choices[line.split(' ')[2]] = line.split(' ')[1]
+                index = line.split(' ')[1]
+                name = line.split(' ')[2]
+                value = line.split(' ')[2]
+                if "." not in value:
+                    value = value+"."
+                entry = {
+                'value' : eval(value),
+                'index' : index,
+                'name' : name
+                }
+                choices.append(entry) 
             if line.startswith('Current:'):
                 current = line.split(' ')[1]
-        # The following hacks are because gphoto2 lies about eos 350d settings
-        # If you use a different camera you will probably need to remove.
         self._shutter_choices = choices
         return current, choices
 
