@@ -9,6 +9,7 @@ import subprocess
 import math
 import os
 import time
+from subprocess import call
 
 camera = GPhoto(subprocess)
 BUTTON = 3 # connects to ground
@@ -16,7 +17,7 @@ BUTTON = 3 # connects to ground
 def init():  
     GPIO.setmode(GPIO.BCM)
 
-    GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)  
+    GPIO.setup(BUTTON, GPIO.IN)  
 
 def cleanup():
     print "Cleaning up GPIO"
@@ -51,65 +52,72 @@ CONFIGS = [("1/1600", 100),
         ("1/13", 800),
         ("1/10", 800)]
 
-current_config = 1 
 MIN_BRIGHTNESS = 230 
 MAX_BRIGHTNESS = 250
-pic_id = 0
 
 
 
-# In[ ]:
+class Cam():
+    def __init__(self):
+        self.config = len(CONFIGS)/2 
+        self.pic_id = 0
+        while True:
+            try:
+                self.change_setting(0)
+                break
+            except Exception as e:  
+                call(["pkill", "gvfs-gphoto2*"])
+                print("Exception caught: {0}".format(e))
 
-def change_setting(current_config, delta):
-    current_config = current_config + delta
-    camera.set_shutter_speed(secs=CONFIGS[current_config][0])
-    camera.set_iso(iso=str(CONFIGS[current_config][1]))  
-    print("Changed config to %s %s" % CONFIGS[current_config])
-    return current_config
+    def change_setting(self, delta):
+        self.config = self.config + delta
+        camera.set_shutter_speed(secs=CONFIGS[self.config][0])
+        camera.set_iso(iso=str(CONFIGS[self.config][1]))  
+        print("Changed config to %s %s" % CONFIGS[self.config])
+        return self.config
 
-def check_brightness(filename, current_config):
-    brightness = float(ImageAnalyzer.mean_brightness(filename))
+    def get_brightness_adj(self):
+        brightness = float(ImageAnalyzer.mean_brightness(self.filename))
 
-    delta = 0
-    if brightness < MIN_BRIGHTNESS and current_config < len(CONFIGS) - 1:
-        delta = MIN_BRIGHTNESS - brightness
-        print("too dark")
-    elif brightness > MAX_BRIGHTNESS and current_config > 0:
-        delta = MAX_BRIGHTNESS - brightness 
-        print("too bright")
+        delta = 0
+        if brightness < MIN_BRIGHTNESS and self.config < len(CONFIGS) - 1:
+            delta = MIN_BRIGHTNESS - brightness
+            print("too dark")
+        elif brightness > MAX_BRIGHTNESS and self.config > 0:
+            delta = MAX_BRIGHTNESS - brightness 
+            print("too bright")
 
-    print("delta is %d"% delta)
-    optimum = (MAX_BRIGHTNESS+MIN_BRIGHTNESS)/2
-    delta = int(round(math.log(optimum/brightness)/math.log(1.3)))
-    print("%d, delta is %d"% (brightness, delta))
+        print("delta is %d"% delta)
+        optimum = (MAX_BRIGHTNESS+MIN_BRIGHTNESS)/2
+        delta = int(round(math.log(optimum/brightness)/math.log(1.3)))
+        print("%d, delta is %d"% (brightness, delta))
 
-    if current_config + delta > len(CONFIGS) - 1:
-        print("returning %d" % (len(CONFIGS)-1 - current_config))
-        return len(CONFIGS)-1 - current_config
-    elif current_config + delta  < 0:
-        print("returning %d" % -current_config)
-        return -current_config
+        if self.config + delta > len(CONFIGS) - 1:
+            print("returning %d" % (len(CONFIGS)-1 - self.config))
+            return len(CONFIGS)-1 - self.config
+        elif self.config + delta  < 0:
+            print("returning %d" % -self.config)
+            return -self.config
 
-    return delta
+        return delta
 
-def take_pic():
-    filename = camera.capture_image_and_download()
-    return filename
-    #return "capt0000.jpg"
+    def take_pic(self):
+        self.filename = camera.capture_image_and_download()
+        return self.filename
 
-def check_pic(filename, current_config):
-    config_delta = check_brightness(filename, current_config)
-    if config_delta != 0: 
-        current_config = change_setting(current_config, config_delta)
-        return current_config, False 
-    return current_config, True
+    def check_brightness(self):
+        config_delta = self.get_brightness_adj()
+        if config_delta != 0: 
+            self.config = self.change_setting(config_delta)
+            return self.config, False 
+        return self.config, True
 
-def store_pic(filename):
-    os.rename(filename, "pic"+str(pic_id)+".jpg")
-    pic_id += 1
+    def store_pic(self):
+        os.rename(self.filename, "pic"+str(self.pic_id)+".jpg")
+        self.pic_id += 1
 
 init()
-change_setting(current_config, 0)
+cam = Cam()
 
 try:
     def add_buzzer_listener(button):
@@ -119,11 +127,10 @@ try:
     def on_buzzer_pushed_once(channel):  
 #        GPIO.remove_event_detect ( channel )
 
-        global current_config
         print("Taking pic!")
-        filename = take_pic()
+        cam.take_pic()
 
-        current_config, changed = check_pic(filename, current_config)
+        cam.check_brightness()
  #       add_buzzer_listener(channel)
     add_buzzer_listener(BUTTON)
 
