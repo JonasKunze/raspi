@@ -87,19 +87,17 @@ class Cam():
             delta = MAX_BRIGHTNESS - brightness 
             print("too bright")
 
-        print("delta is %d"% delta)
+        print("brightness is %d"% brightness)
         optimum = (MAX_BRIGHTNESS+MIN_BRIGHTNESS)/2
-        delta = int(round(math.log(optimum/brightness)/math.log(1.3)))
-        print("%d, delta is %d"% (brightness, delta))
+        adjustment = int(round(math.log(optimum/brightness)/math.log(1.3)))
+        print("%d, delta is %d"% (brightness, adjustment))
 
-        if self.config + delta > len(CONFIGS) - 1:
-            print("returning %d" % (len(CONFIGS)-1 - self.config))
+        if self.config + adjustment > len(CONFIGS) - 1:
             return len(CONFIGS)-1 - self.config
-        elif self.config + delta  < 0:
-            print("returning %d" % -self.config)
+        elif self.config + adjustment  < 0:
             return -self.config
 
-        return delta
+        return adjustment 
 
     def take_pic(self):
         self.filename = camera.capture_image_and_download()
