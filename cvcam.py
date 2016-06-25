@@ -5,15 +5,15 @@ import time
 import picamera
 import picamera.array
 
-screen_width = 640
-screen_height = 480
+screen_width = 640  
+screen_height = 360 
 
-class PiCam(object):
-    def __init__(self):
+class CamPreview(pygame.sprite.Sprite):
+    def __init__(self, width, height):
         self.cam = picamera.PiCamera()
-        self.resolution = (screen_width, screen_height)
-        self.cam.resolution = self.resolution
+        self.cam.resolution = (screen_height, screen_width)
         self.video = picamera.array.PiRGBArray(self.cam)
+        self.image = pygame.Surface([width, height])
 
     def __enter__(self):
         return self
@@ -21,8 +21,9 @@ class PiCam(object):
     def __exit__(self, exc_type, exc_value, traceback):
         self.cam.close()
 
-    def draw_preview(self, frame_buffer):
-        frame = np.rot90(frame_buffer.array)        
+    def update(self):
+        frame = np.fliplr(frame_buffer.array)        
+        print(len(frame))
         self.video.seek(0)
         frame = pygame.surfarray.make_surface(frame)
         screen.fill([0,0,0])
@@ -32,7 +33,7 @@ class PiCam(object):
     def get_stream(self):
         return self.cam.capture_continuous(self.video, format ="rgb", use_video_port=True, resize=self.cam.resolution)
 
-with PiCam() as cam:
+with CamPreview(screen_width, screen_height) as cam:
     pygame.init()
     pygame.display.set_caption("OpenCV camera stream on Pygame")
 
@@ -40,7 +41,7 @@ with PiCam() as cam:
 
     try:
         for frameBuf in cam.get_stream():
-            cam.draw_preview(frameBuf)
+            cam.draw_preview(frameBuf, screen)
             for event in pygame.event.get():
                 if event.type == KEYDOWN:
                     raise KeyboardInterrupt
