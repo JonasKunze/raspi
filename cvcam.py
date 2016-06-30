@@ -68,6 +68,18 @@ class Counter(pygame.sprite.Sprite):
         self.image.fill((255, 255, 255, 0), None, pygame.BLEND_RGBA_MULT)
         self.image.blit(text, (0, 0))
         
+class MyStream(object):
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+    def write(self, data):
+        print(self)
+        print("reading %d bytes" % len(data))
+        data = np.fromstring(data, dtype=np.uint8) 
+        data = np.reshape(data, (self.width, self.height, 3))
+        frame = np.flipud(data)        
+        self.array = np.fliplr(frame)        
+    
 class CamPreview(pygame.sprite.Sprite):
     def __init__(self, width, height):
         pygame.sprite.Sprite.__init__(self)
@@ -75,12 +87,13 @@ class CamPreview(pygame.sprite.Sprite):
         self.height = height
 
         self.cam = picamera.PiCamera()
-        self.cam.resolution = (width, height) 
+        self.cam.resolution = (height, width) 
+        self.cam.framerate = 10
 
-        self.stream = io.BytesIO()
-        self.stream = picamera.array.PiRGBArray(self.cam)
-
-        self.cam.start_recording(self.stream, format="rgb")
+        self.large_stream = MyStream(width, height)
+        self.small_stream = MyStream(width/4, height/4)
+        self.cam.start_recording(self.large_stream, format="rgb")
+        self.cam.start_recording(self.small_stream, format="rgb", splitter_port=2, resize=(self.small_stream.width, self.small_stream.height))
         self.maximize()
 
     def minimize(self):
@@ -99,19 +112,13 @@ class CamPreview(pygame.sprite.Sprite):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        #self.cam.close()
+        self.cam.close()
         print("closing cam")
 
     def update(self):
-        print(self.stream.array)
-        frame = np.fromstring(self.stream.getvalue(), dtype=np.uint8)
-        frame = cv2.imdecode(frame, 1)
-        print(frame.shape)
-        #frame = np.flipud(frame)        
-        #frame = np.fliplr(frame)        
-        self.stream.seek(0)
-        frame = pygame.surfarray.make_surface(frame)
-        self.image.blit(frame, (0,0))
+        if hasattr(self.small_stream, 'array'):
+            frame = pygame.surfarray.make_surface(self.small_stream.array)
+            self.image.blit(frame, (0,0))
 
 GPIO_init()
 pygame.init()
@@ -149,7 +156,6 @@ with CamPreview(screen_width, screen_height) as cam:
     try:
         while running: 
             allsprites.update()
-
             screen.fill((255,255,255))
             allsprites.draw(screen)
             pygame.display.flip()
