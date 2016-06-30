@@ -2,13 +2,15 @@ import pygame
 from pygame.locals import *
 import numpy as np
 import time
+import io
 import picamera
 import picamera.array
+import cv2
 
 from gpio import *
 
-screen_width = 640  
-screen_height = 480 
+screen_width = 1024  
+screen_height = 768 
 
 OFFSCREEN = (2*screen_width, 2* screen_height)
 
@@ -30,7 +32,6 @@ class Counter(pygame.sprite.Sprite):
         self.seconds = seconds
         self.current_time = 0
 
-
     def start(self):
         self.set_value(str(self.seconds))
         self.current_time = self.seconds
@@ -44,7 +45,6 @@ class Counter(pygame.sprite.Sprite):
             pygame.time.set_timer(COUNTER_TICK, 0)
         else:
             self.set_value(str(self.current_time))
-        
 
     def set_value(self, value):
         if value == "":
@@ -68,35 +68,28 @@ class Counter(pygame.sprite.Sprite):
         self.image.fill((255, 255, 255, 0), None, pygame.BLEND_RGBA_MULT)
         self.image.blit(text, (0, 0))
         
- 
-    def update(self):
-        print("updating Counter")
-
 class CamPreview(pygame.sprite.Sprite):
     def __init__(self, width, height):
         pygame.sprite.Sprite.__init__(self)
         self.width = width
         self.height = height
 
-        self.minimize()
-
-    def set_resolution(self, width, height):
-        if hasattr(self, 'cam'):
-            self.cam.close()
         self.cam = picamera.PiCamera()
-        self.cam.resolution = (height, width) 
-        self.video = picamera.array.PiRGBArray(self.cam)
-        self.stream_iterator = self.cam.capture_continuous(self.video, format ="rgb", use_video_port=True, resize=self.cam.resolution)
+        self.cam.resolution = (width, height) 
+
+        self.stream = io.BytesIO()
+        self.stream = picamera.array.PiRGBArray(self.cam)
+
+        self.cam.start_recording(self.stream, format="rgb")
+        self.maximize()
 
     def minimize(self):
-        self.set_resolution(self.width/4, self.height/4)
-        self.image = pygame.Surface([self.width/4, self.height/4])
+        self.image = pygame.Surface((self.width/4, self.height/4))
 
         self.rect = self.image.get_rect()
         self.rect.center = (self.width/2, self.height/2)
 
     def maximize(self):
-        self.set_resolution(self.width, self.height)
         self.image = pygame.Surface([self.width, self.height])
 
         self.rect = self.image.get_rect()
@@ -106,15 +99,19 @@ class CamPreview(pygame.sprite.Sprite):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.cam.close()
+        #self.cam.close()
+        print("closing cam")
 
     def update(self):
-        print("!")
-        #frame_buffer = next(self.stream_iterator)
-        #frame = np.fliplr(frame_buffer.array)        
-        #self.video.seek(0)
-        #frame = pygame.surfarray.make_surface(frame)
-        #self.image.blit(frame, (0,0))
+        print(self.stream.array)
+        frame = np.fromstring(self.stream.getvalue(), dtype=np.uint8)
+        frame = cv2.imdecode(frame, 1)
+        print(frame.shape)
+        #frame = np.flipud(frame)        
+        #frame = np.fliplr(frame)        
+        self.stream.seek(0)
+        frame = pygame.surfarray.make_surface(frame)
+        self.image.blit(frame, (0,0))
 
 GPIO_init()
 pygame.init()
