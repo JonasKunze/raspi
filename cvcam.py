@@ -6,6 +6,7 @@ import io
 import picamera
 import picamera.array
 import cv2
+import threading
 
 from gpio import *
 
@@ -66,7 +67,66 @@ class Counter(pygame.sprite.Sprite):
 
         self.image.fill((255, 255, 255, 0), None, pygame.BLEND_RGBA_MULT)
         self.image.blit(text, (0, 0))
-        
+
+
+done = False
+lock = threading.Lock()
+pool = []
+
+class ImageProcessor(threading.Thread):
+    def __init__(self, callback):
+        print("new ImageProcessor")
+        super(ImageProcessor, self).__init__()
+        self.stream = io.BytesIO()
+        self.event = threading.Event()
+        self.terminated = False
+        self.callback = callback
+        self.start()
+
+    def run(self):
+        print("ImageProcessor running")
+        # This method runs in a separate thread
+        global done
+        while not self.terminated:
+            # Wait for an image to be written to the stream
+            print("event.wait")
+            if self.event.wait(1):
+                try:
+                    self.stream.seek(0)
+                    print("new frame available")
+                    elf.callback(self.stream)   
+
+                finally:
+                    # Reset the stream and event
+                    self.stream.seek(0)
+                    self.stream.truncate()
+                    self.event.clear()
+                    # Return ourselves to the pool
+                    with lock:
+                        print("appending pool")
+                        pool.append(self)
+                        
+
+def streams():
+    while not done:
+        print("lock")
+        with lock:
+            print("pop")
+            if pool:
+                processor = pool.pop()
+            else:
+                processor = None
+        if processor:
+            print("yield")
+            yield processor.stream
+            processor.event.set()
+        else:
+            # When the pool is starved, wait a while for it to refill
+            print("pool empty")
+            time.sleep(0.1)
+
+
+
 class MyStream(object):
     def __init__(self, width, height):
         self.width = width
@@ -77,7 +137,7 @@ class MyStream(object):
         data = np.flipud(data)        
         data = np.fliplr(data)        
         self.array = data 
-    
+
 class CamPreview(pygame.sprite.Sprite):
     def __init__(self, width, height):
         pygame.sprite.Sprite.__init__(self)
@@ -88,14 +148,20 @@ class CamPreview(pygame.sprite.Sprite):
         self.cam.resolution = (height, width) 
         self.cam.framerate = 15 
 
-        self.large_stream = MyStream(width, height)
-        self.small_stream = MyStream(width/4, height/4)
+        pool = [ImageProcessor(self.set_next_frame_large) for i in range(4)]
 
-        self
-        self.cam.start_recording(self.large_stream, format="rgb")
-        self.cam.start_recording(self.small_stream, format="rgb", splitter_port=2, resize=(self.small_stream.height, self.small_stream.width))
+        self.cam.capture_sequence(streams(), use_video_port=True)
+
+#        self.cam.start_recording(self.large_stream, format="rgb")
+#        self.cam.start_recording(self.small_stream, format="rgb", splitter_port=2, resize=(self.small_stream.height, self.small_stream.width))
         self.maximize()
         time.sleep(1)
+
+    def set_next_frame_large(frame):
+        self.large_frame = frame
+
+    def set_next_frame_small(frame):
+        self.small = frame
 
     def minimize(self):
         self.image = pygame.Surface((self.width/4, self.height/4))
@@ -118,9 +184,9 @@ class CamPreview(pygame.sprite.Sprite):
 
     def update(self):
         print("updating")
-        frame = pygame.surfarray.make_surface(self.large_stream.array)
-        self.image.blit(frame, (0,0))
-        frame = pygame.surfarray.make_surface(self.small_stream.array)
+        frame = pygame.surfarray.make_surface(self.large_frame)
+#        self.image.blit(frame, (0,0))
+#        frame = pygame.surfarray.make_surface(self.small_frame)
         self.image.blit(frame, (0,0))
 
 GPIO_init()
@@ -174,4 +240,10 @@ with CamPreview(screen_width, screen_height) as cam:
             clock.tick(30)
     except KeyboardInterrupt,SystemExit:
         pygame.quit()
+
+while pool:
+    with lock:
+        processor = pool.pop()
+    processor.terminated = True
+    processor.join()
 GPIO_cleanup()
