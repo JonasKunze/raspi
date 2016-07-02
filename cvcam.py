@@ -38,7 +38,6 @@ class Counter(pygame.sprite.Sprite):
         pygame.time.set_timer(COUNTER_TICK, 1000)
         
     def tick(self):
-        print(self.current_time)
         self.current_time -= 1
         if self.current_time == 0:
             self.set_value("")
@@ -73,12 +72,11 @@ class MyStream(object):
         self.width = width
         self.height = height
     def write(self, data):
-        print(self)
-        print("reading %d bytes" % len(data))
         data = np.fromstring(data, dtype=np.uint8) 
         data = np.reshape(data, (self.width, self.height, 3))
-        frame = np.flipud(data)        
-        self.array = np.fliplr(frame)        
+        data = np.flipud(data)        
+        data = np.fliplr(data)        
+        self.array = data 
     
 class CamPreview(pygame.sprite.Sprite):
     def __init__(self, width, height):
@@ -88,13 +86,16 @@ class CamPreview(pygame.sprite.Sprite):
 
         self.cam = picamera.PiCamera()
         self.cam.resolution = (height, width) 
-        self.cam.framerate = 10
+        self.cam.framerate = 15 
 
         self.large_stream = MyStream(width, height)
         self.small_stream = MyStream(width/4, height/4)
+
+        self
         self.cam.start_recording(self.large_stream, format="rgb")
-        self.cam.start_recording(self.small_stream, format="rgb", splitter_port=2, resize=(self.small_stream.width, self.small_stream.height))
+        self.cam.start_recording(self.small_stream, format="rgb", splitter_port=2, resize=(self.small_stream.height, self.small_stream.width))
         self.maximize()
+        time.sleep(1)
 
     def minimize(self):
         self.image = pygame.Surface((self.width/4, self.height/4))
@@ -116,9 +117,11 @@ class CamPreview(pygame.sprite.Sprite):
         print("closing cam")
 
     def update(self):
-        if hasattr(self.small_stream, 'array'):
-            frame = pygame.surfarray.make_surface(self.small_stream.array)
-            self.image.blit(frame, (0,0))
+        print("updating")
+        frame = pygame.surfarray.make_surface(self.large_stream.array)
+        self.image.blit(frame, (0,0))
+        frame = pygame.surfarray.make_surface(self.small_stream.array)
+        self.image.blit(frame, (0,0))
 
 GPIO_init()
 pygame.init()
@@ -167,6 +170,7 @@ with CamPreview(screen_width, screen_height) as cam:
                     on_buzzer_pushed_pygame()
                 if event.type == COUNTER_TICK:
                     counter.tick()
+            print(clock.get_fps())
             clock.tick(30)
     except KeyboardInterrupt,SystemExit:
         pygame.quit()

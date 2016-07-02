@@ -15,6 +15,7 @@ theGodArray = None
 # Inherit from PiRGBAnalysis
 class MyStream():
     def write(self, data):
+        print("reading %d bytes" % len(data))
         data = np.fromstring(data, dtype=np.uint8)
         img = data
         print(img.shape)
