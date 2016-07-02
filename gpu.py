@@ -15,40 +15,21 @@ with picamera.PiCamera() as camera:
 
     # Load the arbitrarily sized image
     img = Image.open('overlay.png')
-    # Create an image padded to the required size with
-    # mode 'RGB'
-    pad = Image.new('RGB', (
-        640,
-        400,
-        ))
-    # Paste the original image into the padded one
-    pad.paste(img, (0, 0))
 
-    # Add the overlay with the padded image as the source,
-    # but the original image's dimensions
-    o = camera.add_overlay(pad.tostring(), size=(640, 400))
-    # By default, the overlay is in layer 0, beneath the
-    # preview (which defaults to layer 2). Here we make
-    # the new overlay semi-transparent, then move it above
-    # the preview
+    pad = Image.new("RGB", (
+        ((img.size[0] + 31) // 32) * 32,
+        ((img.size[1] + 15) // 16) * 16,
+        ))
+    pad.paste(img, (0, 0), img)
+
+    o = camera.add_overlay(pad.tostring(), size=img.size)
+    o.fullscreen = False
+    o.window = (0, 0, 640, 480)
     o.alpha = 255 
     o.layer = 3
   
-    while True:
-        time.sleep(1)
- #       stream = io.BytesIO()
- #       print("capturing")
- #       camera.capture(stream, 'jpeg', resize=(640,400))
- #       stream.seek(0)
- #       print("pasting")
- #       img = Image.open(stream)
- #       pad = Image.new('RGB', (
- #           640,
- #           400,
- #       ))
- #       pad.paste(img, (0, 0))
- #       print("overlaying")
- #       camera.remove_overlay(o)
- #       o = camera.add_overlay(img.tostring(), size=(640, 400))
- #       o.alpha = 255 
- #       o.layer = 4
+    try:
+        while True:
+            time.sleep(1)
+    finally:
+        camera.remove_overlay(o)
